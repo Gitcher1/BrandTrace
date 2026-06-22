@@ -2,13 +2,86 @@
 
 BrandTrace is a consumer transparency platform developed by **Ember Fire Media**.
 
-BrandTrace helps consumers understand who owns the products they purchase through a factual, source-based ownership database. The long-term mission is to build the world's most trusted consumer ownership database.
+**Tagline:** Scan. Trace. Decide.  
+**Domain:** [brandtrace.fyi](https://brandtrace.fyi)
+
+BrandTrace helps consumers understand who owns the products they purchase through factual, source-based ownership information. The long-term mission is to build a trusted consumer ownership database that documents information, verifies sources, and lets consumers decide.
 
 > We document.
 >
 > We verify.
 >
 > Consumers decide.
+
+## Public Website
+
+This repository now includes a deployable BrandTrace public website built with React and Vite. The website is intentionally focused on the early public foundation for the project and does not include the future mobile app, database, or backend services.
+
+### Pages and Sections
+
+The public website includes:
+
+- Home
+- About
+- Join the Project
+- Contact
+- Verification Standards
+- Roadmap
+- Hero section
+- Mission section
+- How BrandTrace Works section
+- Verification principles
+- Community invitation
+- Positive transparency spotlight
+- Footer with Ember Fire Media attribution
+
+## Local Development
+
+### Prerequisites
+
+- Node.js 18 or newer
+- npm
+
+### Install Dependencies
+
+```bash
+npm install
+```
+
+### Start the Development Server
+
+```bash
+npm run dev
+```
+
+Vite will print a local development URL, typically `http://localhost:5173`.
+
+### Build for Production
+
+```bash
+npm run build
+```
+
+The production build will be generated in the `dist/` directory.
+
+### Preview the Production Build
+
+```bash
+npm run preview
+```
+
+## Deploying to Vercel
+
+This project is ready for Vercel deployment from the repository root.
+
+1. Import the repository into Vercel.
+2. Keep the framework preset as **Vite** if Vercel detects it automatically.
+3. Use the default build settings:
+   - Install command: `npm install`
+   - Build command: `npm run build`
+   - Output directory: `dist`
+4. Deploy.
+5. Add `brandtrace.fyi` as the production domain in the Vercel project settings.
 
 ## Purpose
 
@@ -88,7 +161,8 @@ BrandTrace/
 ├── images/                 # Image resources, screenshots, and visual references
 ├── logos/                  # Logo files and brand identity assets
 ├── research/               # Source research, verification notes, and evidence records
-└── website/                # Future public website and marketing/policy pages
+├── src/                    # Public website React source
+└── website/                # Public website notes and future marketing/policy pages
 ```
 
 ## Project Documents
