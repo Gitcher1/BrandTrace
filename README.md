@@ -15,25 +15,87 @@ BrandTrace helps consumers understand who owns the products they purchase throug
 
 ## Public Website
 
-This repository now includes a deployable BrandTrace public website built with React and Vite. The website is intentionally focused on the early public foundation for the project and does not include the future mobile app, database, or backend services.
+This repository now includes a deployable BrandTrace public website built with React and Vite. The website now includes a soft-launch local-first BrandTrace MVP for product scanning/upload workflows, company records, evidence trails, and local import/export. It does not include backend services, authentication, cloud storage, paid APIs, or external services.
 
 ### Pages and Sections
 
 The public website includes:
 
-- Home
-- About
-- Join the Project
-- Contact
-- Verification Standards
-- Roadmap
-- Hero section
-- Mission section
-- How BrandTrace Works section
-- Verification principles
-- Community invitation
-- Positive transparency spotlight
-- Footer with Ember Fire Media attribution
+- Soft-launch dashboard with quick actions and local record counts
+- Scanner & Upload Hub for barcode/QR manual entry, product photos, evidence document metadata, and manual product entry
+- Product Records Database with search, filters, detail cards, editing, and delete confirmations
+- Company Database with ownership fields, technology categories, evidence status, confidence, and brand ownership mapping
+- Evidence Trail System for company or product claims, excerpts, source URLs, status, confidence, and review notes
+- Data Import / Export tools for JSON backups and product, company, and evidence CSV exports
+- Clearly marked demo seed data for soft-launch testing
+- Footer with Ember Fire Media attribution and proprietary notice
+
+## Scanner, Upload, and Local Database Features
+
+BrandTrace currently runs as a local-first browser app. Users can:
+
+- Start a scan/upload workflow from the dashboard.
+- Manually enter UPC/barcode values, QR/manual codes, product names, brands, parent companies, store/location, dates, and notes.
+- Upload multiple product or label photos with categories such as front label, ingredient label, nutrition label, barcode photo, company/contact label, and other evidence photo.
+- Store image previews as local data URLs in `localStorage` only.
+- Save report/document metadata without server upload, OCR, or file parsing.
+- Create product records from scans, uploads, or manual entry.
+- Create company records and map brand ownership as owned, licensed, distributed, acquired, or unclear.
+- Add evidence trail records connected to products or companies.
+- Search products and filter by company, technology category, and evidence status.
+- Search brand ownership entries to find likely parent company relationships.
+
+## Local-First Storage Warning
+
+All saved BrandTrace user data is stored in this browser using `localStorage` keys such as:
+
+- `brandtraceCompanies`
+- `brandtraceProducts`
+- `brandtraceEvidence`
+- `brandtraceScans`
+- `brandtraceUploads`
+- `brandtraceSettings`
+
+Large image uploads can fill local device storage. Browser data can also be cleared by the user, browser settings, operating-system cleanup, private browsing modes, or device migration. Export backups regularly before relying on local records.
+
+## Import and Export
+
+The Data Import / Export section supports:
+
+- Export all BrandTrace data as JSON.
+- Export product records as CSV.
+- Export company records as CSV.
+- Export evidence records as CSV.
+- Import a BrandTrace JSON backup by merge or overwrite.
+- Gracefully report invalid JSON imports.
+- Clear marked demo/sample records.
+- Reset all local BrandTrace data with a strong confirmation prompt.
+
+## Soft Launch Limitations
+
+The current MVP is intentionally careful and local-only:
+
+- No backend, authentication, cloud database, paid API, or external service is included.
+- Barcode/QR camera scanning is limited to browser support for native `BarcodeDetector`; unsupported devices show a manual-entry fallback.
+- Camera permission denial should not block manual product entry.
+- Uploaded images are not committed to the repository and are not uploaded to a server.
+- Evidence documents are represented by metadata and notes only; OCR, parsing, and document storage are not implemented.
+- Demo seed records are clearly marked as research/demo records and should not be treated as verified retail availability.
+- BrandTrace separates verified facts, watchlist items, disputed items, needs-review records, and unverified viral claims.
+
+## Future Roadmap
+
+Planned future improvements include:
+
+- Real barcode lookup integration.
+- OCR ingredient label extraction.
+- Public evidence database.
+- User-submitted verification queue.
+- Admin review dashboard.
+- Retailer listing verification.
+- UPC/photo matching.
+- Company ownership graph visualization.
+- Community fact-check workflow.
 
 ## Local Development
 
