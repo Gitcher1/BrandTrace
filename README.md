@@ -248,3 +248,46 @@ BrandTrace is developed by **Ember Fire Media**.
 Company slogan:
 
 > When systems fail, we build our own.
+
+## UPC Lookup and Product Auto-Fill
+
+BrandTrace now includes an optional UPC lookup flow in the Scanner & Upload Hub. A user can enter a barcode manually, reuse a barcode already typed into the scan form, upload barcode/label photos for local recordkeeping, clear the lookup field, retry a lookup, or refresh cached lookup data.
+
+When public lookup is enabled, BrandTrace calls the Open Food Facts public barcode endpoint with no API key:
+
+```text
+https://world.openfoodfacts.org/api/v2/product/{barcode}.json
+```
+
+If Open Food Facts returns a product, BrandTrace creates a review draft instead of immediately treating the record as final. The draft may include product name, brand, UPC/barcode, category, ingredients text, nutrition notes, image URL, packaging/labels, country/market, source name, source URL, lookup date, and source badges. The review screen reminds users that public product lookup data may be incomplete or outdated and should be corrected before saving.
+
+BrandTrace attempts to match the returned brand against the local company database by company name, known brands, brand ownership entries, case-insensitive comparison, and punctuation-insensitive comparison. A match links the product to the local company record and displays local company-match language. If no match is found, the parent company remains unknown, the company status is marked as needing research, and the user can create a low-confidence company draft from the lookup.
+
+Successful public lookups can also create a local evidence record. These evidence records use the source name Open Food Facts, source URL, date found, related product and matched company when available, the claim “Product identity and label data,” a needs-review evidence status, and notes reminding users that public product data may be user-contributed and should be verified against the physical label.
+
+### Lookup Cache
+
+UPC lookup cache entries are stored locally in `localStorage` under:
+
+- `brandtraceLookupCache`
+
+The cache stores compact lookup metadata such as barcode, source, found/not-found status, fetch time, normalized product data, and a short summary. BrandTrace checks existing saved products and cached lookup results before calling Open Food Facts when local-first behavior is enabled. Cached results display “Using saved lookup data. You can refresh this lookup.”
+
+### Lookup Privacy
+
+UPC lookup requires internet access and sends the barcode number to Open Food Facts. Uploaded photos stay local in browser storage unless the user chooses to export or share their BrandTrace data. No backend, authentication, hidden API key, paid UPC service, or cloud database is used.
+
+### Public Database Limitations
+
+Open Food Facts is a public product database and may contain user-contributed, incomplete, outdated, regional, or label-version-specific data. BrandTrace treats lookup results as helpful starting points, not verified truth. Product identity, ingredients, nutrition details, packaging claims, and parent-company ownership should be checked against the physical label and stronger evidence before marking any record verified.
+
+### Updated Roadmap
+
+Future UPC and verification improvements may include:
+
+- GS1 verification support.
+- Paid UPC database support.
+- OCR ingredient extraction.
+- Parent company ownership graph.
+- Admin review queue.
+- Public verified BrandTrace database.
