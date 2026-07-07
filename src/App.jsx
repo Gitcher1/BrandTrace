@@ -1,205 +1,113 @@
-const navItems = [
-  { label: 'Home', href: '#home' },
-  { label: 'About', href: '#about' },
-  { label: 'Join', href: '#join' },
-  { label: 'Contact', href: '#contact' },
-  { label: 'Standards', href: '#standards' },
-  { label: 'Roadmap', href: '#roadmap' },
+import { useEffect, useMemo, useState } from 'react';
+
+const STORAGE_KEYS = {
+  companies: 'brandtraceCompanies',
+  products: 'brandtraceProducts',
+  evidence: 'brandtraceEvidence',
+  scans: 'brandtraceScans',
+  uploads: 'brandtraceUploads',
+  settings: 'brandtraceSettings',
+};
+
+const TECHNOLOGY_CATEGORIES = [
+  'Conventional food production',
+  '3D printed food',
+  'Factory 3D printing / tooling only',
+  'Cultivated-cell ingredient',
+  'Fermentation-derived ingredient',
+  'Bioengineered ingredient',
+  'Synthetic additive / color / flavor',
+  'Packaging concern',
+  'Labor / ethics concern',
+  'Ownership / monopoly concern',
+  'Unknown / needs research',
 ];
 
-const workSteps = [
-  {
-    title: 'Scan',
-    text: 'BrandTrace is being designed to help consumers identify products and brands quickly from trusted product records.',
-  },
-  {
-    title: 'Trace',
-    text: 'Ownership details, acquisition history, and parent-company relationships will be documented with source links where available.',
-  },
-  {
-    title: 'Decide',
-    text: 'Consumers can use factual information to make their own choices, including personal watchlists for products they want to follow.',
-  },
-];
+const EVIDENCE_STATUSES = ['Verified', 'Likely', 'Unclear', 'Watchlist', 'Unverified viral claim', 'Disputed', 'Not found', 'Needs review'];
+const CONFIDENCE_LEVELS = ['High', 'Medium', 'Low', 'Unknown'];
+const EVIDENCE_TYPES = ['Company statement', 'Regulatory source', 'News report', 'Academic/research source', 'Retail listing', 'Product label', 'User upload', 'Receipt/photo evidence', 'Fact check', 'Unverified social media claim', 'Other'];
+const PHOTO_TYPES = ['Front label', 'Ingredient label', 'Nutrition label', 'Barcode photo', 'Company/contact label', 'Other evidence photo'];
+const OWNERSHIP_TYPES = ['Owned', 'Licensed', 'Distributed', 'Acquired', 'Unclear'];
 
-const principles = [
-  'Clearly separate verified information, pending review, community submissions, and opinion.',
-  'Use reliable public sources and preserve source references for ownership claims.',
-  'Avoid unsupported accusations, exaggerated claims, and partisan framing.',
-  'Give transparent organizations and locally or family-owned businesses room to be recognized.',
-];
+const emptyProduct = {
+  productName: '', brand: '', parentCompany: '', upc: '', category: '', storeLocation: '', dateFound: '', countryMarket: '', ingredientsNotes: '',
+  technologyCategory: 'Unknown / needs research', evidenceStatus: 'Needs review', confidenceLevel: 'Unknown', userNotes: '', uploadedImages: [], linkedEvidenceIds: [],
+};
+const emptyCompany = { companyName: '', parentCompany: '', headquarters: '', website: '', contactPage: '', knownBrands: '', subsidiaries: '', productCategories: '', publicClaims: '', technologyCategories: ['Unknown / needs research'], evidenceStatus: 'Needs review', confidenceLevel: 'Unknown', lastReviewedDate: '', notes: '', brandOwnership: [] };
+const emptyEvidence = { evidenceTitle: '', evidenceType: 'User upload', sourceName: '', sourceUrl: '', date: '', relatedCompany: '', relatedProduct: '', claim: '', summary: '', quote: '', evidenceStatus: 'Needs review', confidenceLevel: 'Unknown', notes: '', lastReviewedDate: '' };
 
-const roadmapItems = [
-  'Public website foundation and project documentation',
-  'Source review workflow and verification standards',
-  'Early product and ownership data model',
-  'Community contribution and correction intake',
-  'Mobile scanning experience and personal watchlists',
-];
-
-function Header() {
-  return (
-    <header className="site-header">
-      <nav className="nav container" aria-label="Primary navigation">
-        <a className="brand" href="#home" aria-label="BrandTrace home">
-          <span className="brand-mark">BT</span>
-          <span>BrandTrace</span>
-        </a>
-        <div className="nav-links">
-          {navItems.map((item) => (
-            <a key={item.href} href={item.href}>
-              {item.label}
-            </a>
-          ))}
-        </div>
-      </nav>
-    </header>
-  );
+function id() { return globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `bt_${Date.now()}_${Math.random().toString(36).slice(2)}`; }
+function now() { return new Date().toISOString(); }
+function withMeta(record) { const stamp = now(); return { id: id(), createdAt: stamp, updatedAt: stamp, ...record }; }
+function readKey(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
+function saveKey(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function asCsv(rows) {
+  if (!rows.length) return '';
+  const headers = [...new Set(rows.flatMap((r) => Object.keys(r).filter((k) => !['uploadedImages'].includes(k))))];
+  return [headers.join(','), ...rows.map((row) => headers.map((h) => `"${String(Array.isArray(row[h]) ? row[h].join('; ') : row[h] ?? '').replaceAll('"', '""')}"`).join(','))].join('\n');
 }
+function download(filename, content, type = 'application/json') { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = filename; a.click(); URL.revokeObjectURL(a.href); }
 
-function SectionHeader({ eyebrow, title, children }) {
-  return (
-    <div className="section-header">
-      <p className="eyebrow">{eyebrow}</p>
-      <h2>{title}</h2>
-      {children && <p>{children}</p>}
-    </div>
-  );
-}
+const demoCompanies = [withMeta({ ...emptyCompany, companyName: 'Cargill', parentCompany: 'Cargill, Incorporated', headquarters: 'United States / Minnesota', website: 'https://www.cargill.com', knownBrands: 'Foody’s partnership research/demo', publicClaims: 'Demo record: Cargill, Cocuus, and Foody’s 3D printed plant-based bacon activity in Spain should be reviewed against current sources before use.', technologyCategories: ['3D printed food'], evidenceStatus: 'Needs review', confidenceLevel: 'Low', notes: 'Research/demo record only; no U.S. store verification claimed.', brandOwnership: [{ id: id(), brand: 'Foody’s', relationship: 'Unclear', notes: 'Demo partnership/watch item; confirm ownership and distribution before drawing conclusions.', productIds: [] }] }),
+withMeta({ ...emptyCompany, companyName: 'PepsiCo', parentCompany: 'PepsiCo', headquarters: 'United States / New York', knownBrands: 'Frito-Lay', publicClaims: 'Demo record separates factory tooling/R&D from edible product claims.', technologyCategories: ['Factory 3D printing / tooling only'], evidenceStatus: 'Likely', confidenceLevel: 'Medium', notes: 'Factory 3D printing tooling only; not an edible 3D printed food claim.', brandOwnership: [{ id: id(), brand: 'Frito-Lay', relationship: 'Owned', notes: 'Demo ownership mapping.', productIds: [] }] }),
+withMeta({ ...emptyCompany, companyName: 'Steakholder Foods', parentCompany: 'Steakholder Foods', headquarters: 'Israel', publicClaims: 'Perfecta U.S. watchlist demo item; verify current market status before any claim.', technologyCategories: ['3D printed food'], evidenceStatus: 'Watchlist', confidenceLevel: 'Low', notes: 'Research/demo watchlist record; no U.S. store verification claimed.' }),
+withMeta({ ...emptyCompany, companyName: 'Mission Barns', parentCompany: 'Mission Barns', headquarters: 'United States / California', publicClaims: 'Cultivated pork fat demo record, clearly not categorized as 3D printed food.', technologyCategories: ['Cultivated-cell ingredient'], evidenceStatus: 'Needs review', confidenceLevel: 'Low', notes: 'Demo record distinguishes cultivated ingredient from 3D printing.' })];
+const demoProducts = [
+withMeta({ ...emptyProduct, productName: 'Foody’s 3D printed plant-based bacon demo', brand: 'Foody’s', parentCompany: 'Cargill / Cocuus relationship to review', category: 'Plant-based bacon', countryMarket: 'Spain', technologyCategory: '3D printed food', evidenceStatus: 'Needs review', confidenceLevel: 'Low', userNotes: 'Research/demo record only.' }),
+withMeta({ ...emptyProduct, productName: 'Frito-Lay factory tooling demo', brand: 'Frito-Lay', parentCompany: 'PepsiCo', category: 'Factory process example', technologyCategory: 'Factory 3D printing / tooling only', evidenceStatus: 'Likely', confidenceLevel: 'Medium', userNotes: 'Appears to be tooling/R&D only, not edible product claim.' }),
+withMeta({ ...emptyProduct, productName: 'Perfecta U.S. watchlist demo', brand: 'Perfecta', parentCompany: 'Steakholder Foods', technologyCategory: '3D printed food', evidenceStatus: 'Watchlist', confidenceLevel: 'Low', userNotes: 'Watchlist only; no U.S. store verification claimed.' }),
+withMeta({ ...emptyProduct, productName: 'Cultivated pork fat demo', brand: 'Mission Barns', parentCompany: 'Mission Barns', category: 'Cultivated ingredient', technologyCategory: 'Cultivated-cell ingredient', evidenceStatus: 'Needs review', confidenceLevel: 'Low', userNotes: 'Cultivated-cell ingredient; not 3D printed.' })];
 
 function App() {
-  return (
-    <>
-      <Header />
-      <main>
-        <section id="home" className="hero section">
-          <div className="container hero-grid">
-            <div className="hero-copy">
-              <p className="eyebrow">Consumer transparency through source-based ownership information</p>
-              <h1>Scan. Trace. Decide.</h1>
-              <p className="hero-text">
-                BrandTrace helps consumers understand who owns the products they purchase. We document ownership information, verify sources, and let consumers decide for themselves.
-              </p>
-              <div className="hero-actions">
-                <a className="button primary" href="#join">Join the Project</a>
-                <a className="button secondary" href="#standards">View Standards</a>
-              </div>
-            </div>
-            <div className="hero-card" aria-label="BrandTrace principles">
-              <span className="status-pill">In development</span>
-              <h2>Built for trust, not pressure.</h2>
-              <p>
-                BrandTrace is not a political platform, corporate attack platform, or boycott app. It is a factual transparency tool for people who want better context.
-              </p>
-            </div>
-          </div>
-        </section>
+  const [companies, setCompanies] = useState(() => readKey(STORAGE_KEYS.companies, []));
+  const [products, setProducts] = useState(() => readKey(STORAGE_KEYS.products, []));
+  const [evidence, setEvidence] = useState(() => readKey(STORAGE_KEYS.evidence, []));
+  const [scans, setScans] = useState(() => readKey(STORAGE_KEYS.scans, []));
+  const [uploads, setUploads] = useState(() => readKey(STORAGE_KEYS.uploads, []));
+  const [settings, setSettings] = useState(() => readKey(STORAGE_KEYS.settings, { demoSeeded: false }));
+  const [productForm, setProductForm] = useState(emptyProduct);
+  const [companyForm, setCompanyForm] = useState(emptyCompany);
+  const [evidenceForm, setEvidenceForm] = useState(emptyEvidence);
+  const [scanForm, setScanForm] = useState({ ...emptyProduct, qrCode: '', notes: '' });
+  const [docForm, setDocForm] = useState({ fileName: '', evidenceType: 'User upload', sourceOrganization: '', date: '', relatedCompany: '', relatedProduct: '', summaryNotes: '', confidenceLevel: 'Unknown' });
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [query, setQuery] = useState(''); const [companyFilter, setCompanyFilter] = useState(''); const [techFilter, setTechFilter] = useState(''); const [statusFilter, setStatusFilter] = useState('');
+  const [result, setResult] = useState(null); const [message, setMessage] = useState(''); const [activeProduct, setActiveProduct] = useState(null);
+  const barcodeSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window;
 
-        <section id="about" className="section light-section">
-          <div className="container two-column">
-            <SectionHeader eyebrow="About" title="A clear view of product ownership.">
-              BrandTrace exists to make ownership relationships easier to understand without telling people what to think.
-            </SectionHeader>
-            <div className="content-card">
-              <h3>Our mission</h3>
-              <p>
-                Developed by Ember Fire Media, BrandTrace aims to become a trusted source for product ownership information, acquisition context, and transparent source records.
-              </p>
-              <p>
-                The platform is designed for neutral consumer education: document the information, verify the sources, and give people the confidence to make informed choices.
-              </p>
-            </div>
-          </div>
-        </section>
+  useEffect(() => saveKey(STORAGE_KEYS.companies, companies), [companies]); useEffect(() => saveKey(STORAGE_KEYS.products, products), [products]); useEffect(() => saveKey(STORAGE_KEYS.evidence, evidence), [evidence]); useEffect(() => saveKey(STORAGE_KEYS.scans, scans), [scans]); useEffect(() => saveKey(STORAGE_KEYS.uploads, uploads), [uploads]); useEffect(() => saveKey(STORAGE_KEYS.settings, settings), [settings]);
+  const stats = useMemo(() => ({ companies: companies.length, products: products.length, evidence: evidence.length, watchlist: [...products, ...companies].filter((r) => r.evidenceStatus === 'Watchlist').length, unverified: [...products, ...companies, ...evidence].filter((r) => r.evidenceStatus === 'Unverified viral claim').length, verified: [...products, ...companies, ...evidence].filter((r) => r.evidenceStatus === 'Verified').length }), [companies, products, evidence]);
+  const filteredProducts = products.filter((p) => [p.productName, p.brand, p.parentCompany, p.upc].join(' ').toLowerCase().includes(query.toLowerCase()) && (!companyFilter || p.parentCompany === companyFilter) && (!techFilter || p.technologyCategory === techFilter) && (!statusFilter || p.evidenceStatus === statusFilter));
+  const brandMatches = companies.flatMap((c) => (c.brandOwnership || []).map((b) => ({ ...b, companyName: c.companyName }))).filter((b) => b.brand?.toLowerCase().includes(query.toLowerCase()));
 
-        <section className="section">
-          <div className="container">
-            <SectionHeader eyebrow="How BrandTrace Works" title="A simple path from product to context." />
-            <div className="card-grid three">
-              {workSteps.map((step) => (
-                <article className="content-card step-card" key={step.title}>
-                  <span className="step-number">{step.title}</span>
-                  <p>{step.text}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
+  function saveProduct(source = 'Manual entry', form = productForm) { const record = editingProductId ? { ...products.find((p) => p.id === editingProductId), ...form, updatedAt: now() } : withMeta(form); setProducts((prev) => editingProductId ? prev.map((p) => p.id === editingProductId ? record : p) : [record, ...prev]); setResult(record); setEditingProductId(null); setProductForm(emptyProduct); setMessage(`${source} saved locally.`); return record; }
+  function saveScan() { const product = saveProduct('Scan record', { ...emptyProduct, ...scanForm, userNotes: scanForm.notes }); setScans((prev) => [withMeta({ ...scanForm, productId: product.id }), ...prev]); setScanForm({ ...emptyProduct, qrCode: '', notes: '' }); }
+  function saveCompany() { setCompanies((prev) => [withMeta(companyForm), ...prev]); setCompanyForm(emptyCompany); setMessage('Company saved locally.'); }
+  function saveEvidence() { setEvidence((prev) => [withMeta(evidenceForm), ...prev]); setEvidenceForm(emptyEvidence); setMessage('Evidence item saved locally.'); }
+  function saveDocEvidence() { const ev = withMeta({ ...emptyEvidence, evidenceTitle: docForm.fileName || 'Local evidence document', evidenceType: docForm.evidenceType, sourceName: docForm.sourceOrganization, date: docForm.date, relatedCompany: docForm.relatedCompany, relatedProduct: docForm.relatedProduct, summary: docForm.summaryNotes, confidenceLevel: docForm.confidenceLevel }); setEvidence((p) => [ev, ...p]); setUploads((p) => [withMeta({ ...docForm, evidenceId: ev.id }), ...p]); setDocForm({ fileName: '', evidenceType: 'User upload', sourceOrganization: '', date: '', relatedCompany: '', relatedProduct: '', summaryNotes: '', confidenceLevel: 'Unknown' }); setMessage('Document metadata saved locally.'); }
+  function handleImages(files) { Array.from(files).forEach((file) => { const reader = new FileReader(); reader.onload = () => setProductForm((p) => ({ ...p, uploadedImages: [...(p.uploadedImages || []), { id: id(), name: file.name, type: p.nextPhotoType || 'Other evidence photo', dataUrl: reader.result }] })); reader.readAsDataURL(file); }); }
+  function seedDemo() { if (settings.demoSeeded) return; setCompanies((p) => [...demoCompanies, ...p]); setProducts((p) => [...demoProducts, ...p]); setSettings({ ...settings, demoSeeded: true }); }
+  function clearDemo() { if (!confirm('Clear demo/sample BrandTrace records?')) return; const isDemo = (r) => JSON.stringify(r).toLowerCase().includes('demo'); setCompanies((p) => p.filter((r) => !isDemo(r))); setProducts((p) => p.filter((r) => !isDemo(r))); setSettings({ ...settings, demoSeeded: false }); }
+  function resetAll() { if (!confirm('Reset all local BrandTrace data on this device? This cannot be undone.')) return; Object.values(STORAGE_KEYS).forEach((k) => localStorage.removeItem(k)); setCompanies([]); setProducts([]); setEvidence([]); setScans([]); setUploads([]); setSettings({ demoSeeded: false }); }
+  function importBackup(file, merge) { const reader = new FileReader(); reader.onload = () => { try { const data = JSON.parse(reader.result); if (!merge && !confirm('Overwrite local BrandTrace data with this backup?')) return; setCompanies(merge ? [...(data.companies || []), ...companies] : data.companies || []); setProducts(merge ? [...(data.products || []), ...products] : data.products || []); setEvidence(merge ? [...(data.evidence || []), ...evidence] : data.evidence || []); setScans(merge ? [...(data.scans || []), ...scans] : data.scans || []); setUploads(merge ? [...(data.uploads || []), ...uploads] : data.uploads || []); setSettings({ ...settings, ...(data.settings || {}) }); setMessage('Backup imported.'); } catch { setMessage('Import failed: invalid BrandTrace JSON file.'); } }; reader.readAsText(file); }
+  const input = (label, value, onChange, props = {}) => <label>{label}<input value={value || ''} onChange={(e) => onChange(e.target.value)} {...props} /></label>;
+  const select = (label, value, onChange, options) => <label>{label}<select value={value || ''} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o}>{o}</option>)}</select></label>;
+  const statusText = (r) => r.evidenceStatus === 'Verified' ? 'Verified evidence exists. Review sources before drawing conclusions.' : r.evidenceStatus === 'Watchlist' ? 'This item is on your watchlist.' : r.evidenceStatus?.includes('Unverified') || r.evidenceStatus === 'Needs review' ? 'This claim needs more evidence.' : r.technologyCategory === 'Factory 3D printing / tooling only' ? 'This appears to be factory tooling/R&D only, not an edible product claim.' : 'No verified concern found yet.';
 
-        <section id="standards" className="section light-section">
-          <div className="container two-column">
-            <SectionHeader eyebrow="Verification Standards" title="Facts first. Sources visible. Claims reviewed.">
-              BrandTrace is being built around careful verification practices so ownership data remains useful, fair, and accountable.
-            </SectionHeader>
-            <ul className="principle-list">
-              {principles.map((principle) => (
-                <li key={principle}>{principle}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section className="section spotlight-section">
-          <div className="container spotlight-card">
-            <div>
-              <p className="eyebrow">Transparency Spotlight</p>
-              <h2>Recognition for organizations that embrace openness.</h2>
-            </div>
-            <p>
-              BrandTrace is not only about tracing large corporate ownership. The project also aims to recognize transparent businesses, locally owned companies, family-owned brands, and organizations that voluntarily make ownership easier to understand.
-            </p>
-          </div>
-        </section>
-
-        <section id="join" className="section light-section">
-          <div className="container two-column">
-            <SectionHeader eyebrow="Join the Project" title="Help build a more transparent product landscape.">
-              Researchers, designers, developers, business owners, and careful community reviewers can help BrandTrace grow responsibly.
-            </SectionHeader>
-            <div className="content-card">
-              <h3>Early contributors are welcome</h3>
-              <p>
-                The current priority is a trustworthy foundation: verification rules, research workflows, product records, and clear public communication.
-              </p>
-              <a className="text-link" href="mailto:hello@brandtrace.fyi">hello@brandtrace.fyi</a>
-            </div>
-          </div>
-        </section>
-
-        <section id="roadmap" className="section">
-          <div className="container two-column">
-            <SectionHeader eyebrow="Roadmap" title="Build carefully before scaling.">
-              BrandTrace will grow in phases, prioritizing trust and documentation before advanced product features.
-            </SectionHeader>
-            <ol className="roadmap-list">
-              {roadmapItems.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        <section id="contact" className="section contact-section">
-          <div className="container contact-card">
-            <p className="eyebrow">Contact</p>
-            <h2>Questions, corrections, or partnership ideas?</h2>
-            <p>
-              Reach the BrandTrace team for source submissions, verification questions, transparent business recognition, or early project collaboration.
-            </p>
-            <a className="button primary" href="mailto:hello@brandtrace.fyi">Contact BrandTrace</a>
-          </div>
-        </section>
-      </main>
-
-      <footer className="site-footer">
-        <div className="container footer-grid">
-          <p>Developed by Ember Fire Media</p>
-          <p>BrandTrace.fyi</p>
-          <p>Scan. Trace. Decide.</p>
-        </div>
-      </footer>
-    </>
-  );
+  return <><header className="site-header"><nav className="nav container"><a className="brand" href="#home"><span className="brand-mark">BT</span><span>BrandTrace</span></a><div className="nav-links"><a href="#scanner">Scanner</a><a href="#products">Products</a><a href="#companies">Companies</a><a href="#evidence">Evidence</a><a href="#data">Data</a></div></nav></header><main>
+    <section id="home" className="hero section"><div className="container hero-grid"><div><p className="eyebrow">Local-first evidence tracing</p><h1>Scan. Upload. Trace.</h1><p className="hero-text">BrandTrace is an evidence-first product and company tracing tool. It helps you organize claims, sources, labels, and company information. It does not replace legal, medical, food safety, or regulatory advice.</p><div className="hero-actions"><a className="button primary" href="#scanner">Start new scan/upload</a><a className="button secondary" href="#products">Search product database</a></div></div><div className="hero-card"><h2>Soft launch dashboard</h2><div className="stats">{Object.entries(stats).map(([k,v])=><span key={k}><b>{v}</b>{k}</span>)}</div><a className="button primary" href="#evidence">Add evidence</a><a className="button secondary" href="#data">Export backup</a></div></div></section>
+    {message && <div className="toast container">{message}</div>}
+    <section id="scanner" className="section"><div className="container"><Section title="Scanner & Upload Hub" eyebrow="Primary intake" text="Capture product labels, barcode notes, evidence documents, or manual product records. All data stays in this browser localStorage." /><div className="grid two"><div className="card"><h3>Scan Barcode / QR</h3>{!barcodeSupported && <p className="notice">Camera scanning is not supported on this device yet. You can still enter the UPC or upload label photos.</p>}<p className="muted">If supported, BarcodeDetector can be used by future camera controls; permission denial will not break manual entry.</p>{input('UPC / barcode', scanForm.upc, v=>setScanForm({...scanForm, upc:v}))}{input('QR/manual code', scanForm.qrCode, v=>setScanForm({...scanForm, qrCode:v}))}{input('Product name', scanForm.productName, v=>setScanForm({...scanForm, productName:v}))}{input('Brand', scanForm.brand, v=>setScanForm({...scanForm, brand:v}))}{input('Company / parent company', scanForm.parentCompany, v=>setScanForm({...scanForm, parentCompany:v}))}{input('Store/location', scanForm.storeLocation, v=>setScanForm({...scanForm, storeLocation:v}))}{input('Date found', scanForm.dateFound, v=>setScanForm({...scanForm, dateFound:v}), {type:'date'})}<label>Notes<textarea value={scanForm.notes} onChange={e=>setScanForm({...scanForm, notes:e.target.value})}/></label><button className="button primary" onClick={saveScan}>Save Scan Record</button></div><div className="card"><h3>Upload Label / Product Photos</h3><p className="notice">Large image uploads can fill local device storage. Export your data regularly.</p>{select('Photo type', productForm.nextPhotoType, v=>setProductForm({...productForm,nextPhotoType:v}), PHOTO_TYPES)}<input type="file" accept="image/*" multiple onChange={(e)=>handleImages(e.target.files)} /><div className="previews">{(productForm.uploadedImages||[]).map(img=><figure key={img.id}><img src={img.dataUrl} alt={img.name}/><figcaption>{img.type}</figcaption></figure>)}</div><h3>Manual Product Entry</h3><ProductFields form={productForm} setForm={setProductForm} select={select} input={input}/><button className="button primary" onClick={()=>saveProduct()}>Save Product Record</button></div><div className="card"><h3>Upload Reports / Evidence Documents</h3><p className="muted">No server upload, OCR, or parsing is performed. Save metadata and notes only.</p>{input('File name', docForm.fileName, v=>setDocForm({...docForm,fileName:v}))}{select('Evidence type', docForm.evidenceType, v=>setDocForm({...docForm,evidenceType:v}), EVIDENCE_TYPES)}{input('Source organization', docForm.sourceOrganization, v=>setDocForm({...docForm,sourceOrganization:v}))}{input('Date', docForm.date, v=>setDocForm({...docForm,date:v}), {type:'date'})}{input('Related company', docForm.relatedCompany, v=>setDocForm({...docForm,relatedCompany:v}))}{input('Related product', docForm.relatedProduct, v=>setDocForm({...docForm,relatedProduct:v}))}<label>Summary notes<textarea value={docForm.summaryNotes} onChange={e=>setDocForm({...docForm,summaryNotes:e.target.value})}/></label>{select('Confidence level', docForm.confidenceLevel, v=>setDocForm({...docForm,confidenceLevel:v}), CONFIDENCE_LEVELS)}<button className="button primary" onClick={saveDocEvidence}>Save Evidence Metadata</button></div>{result && <ResultCard record={result} statusText={statusText(result)} evidenceCount={evidence.filter(e=>e.relatedProduct===result.productName).length}/>}</div></div></section>
+    <section id="products" className="section light-section"><div className="container"><Section title="Product Records Database" eyebrow="Search first" text="Every scan, upload, and manual product entry is stored locally and can be edited or deleted with confirmation."/><Filters query={query} setQuery={setQuery} companyFilter={companyFilter} setCompanyFilter={setCompanyFilter} techFilter={techFilter} setTechFilter={setTechFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} companies={companies} /><div className="list">{filteredProducts.map(p=><article className="record" key={p.id}><h3>{p.productName || 'Unnamed product'}</h3><p>{p.brand} · {p.parentCompany} · {p.evidenceStatus}</p><button onClick={()=>setActiveProduct(p)}>Open detail</button><button onClick={()=>{setEditingProductId(p.id); setProductForm(p); location.hash='scanner';}}>Edit</button><button className="danger" onClick={()=>confirm('Delete this product record?')&&setProducts(products.filter(x=>x.id!==p.id))}>Delete</button></article>)}</div>{activeProduct&&<ResultCard record={activeProduct} statusText={statusText(activeProduct)} evidenceCount={evidence.filter(e=>e.relatedProduct===activeProduct.productName).length} close={()=>setActiveProduct(null)}/>}</div></section>
+    <section id="companies" className="section"><div className="container"><Section title="Company Database" eyebrow="Ownership mapping" text="Save companies, technology categories, evidence status, confidence, and brand ownership relationships."/><div className="grid two"><div className="card"><CompanyFields form={companyForm} setForm={setCompanyForm} input={input} select={select}/><button className="button primary" onClick={saveCompany}>Save Company</button></div><div><h3>Brand Ownership Search</h3><input placeholder="Search products, brands, or companies" value={query} onChange={e=>setQuery(e.target.value)}/>{brandMatches.map(b=><p className="pill" key={b.id}>{b.brand} → {b.companyName} ({b.relationship})</p>)}{companies.map(c=><article className="record" key={c.id}><h3>{c.companyName}</h3><p>{c.parentCompany} · {c.evidenceStatus} · {c.confidenceLevel}</p><p><b>Brands:</b> {(c.brandOwnership||[]).map(b=>`${b.brand} (${b.relationship})`).join(', ') || c.knownBrands}</p><button className="danger" onClick={()=>confirm('Delete company record?')&&setCompanies(companies.filter(x=>x.id!==c.id))}>Delete</button></article>)}</div></div></div></section>
+    <section id="evidence" className="section light-section"><div className="container"><Section title="Evidence Trail System" eyebrow="Claims need sources" text="Connect evidence to a company or product without implying verification unless its status is marked verified."/><div className="card"><EvidenceFields form={evidenceForm} setForm={setEvidenceForm} input={input} select={select}/><button className="button primary" onClick={saveEvidence}>Save Evidence</button></div><div className="list">{evidence.map(e=><article className="record" key={e.id}><h3>{e.evidenceTitle}</h3><p>{e.evidenceType} · {e.evidenceStatus} · {e.confidenceLevel}</p><p>{e.summary}</p><button className="danger" onClick={()=>confirm('Delete evidence item?')&&setEvidence(evidence.filter(x=>x.id!==e.id))}>Delete</button></article>)}</div></div></section>
+    <section id="data" className="section"><div className="container"><Section title="Data Import / Export" eyebrow="Local data management" text="Export regularly. Images saved as data URLs can fill local device storage."/><div className="actions"><button onClick={()=>download('brandtrace-backup.json', JSON.stringify({companies,products,evidence,scans,uploads,settings}, null, 2))}>Export all JSON</button><button onClick={()=>download('brandtrace-products.csv', asCsv(products), 'text/csv')}>Export products CSV</button><button onClick={()=>download('brandtrace-companies.csv', asCsv(companies), 'text/csv')}>Export companies CSV</button><button onClick={()=>download('brandtrace-evidence.csv', asCsv(evidence), 'text/csv')}>Export evidence CSV</button><label className="button secondary import">Import JSON merge<input type="file" accept="application/json" onChange={e=>e.target.files[0]&&importBackup(e.target.files[0], true)}/></label><label className="button secondary import">Import JSON overwrite<input type="file" accept="application/json" onChange={e=>e.target.files[0]&&importBackup(e.target.files[0], false)}/></label><button onClick={seedDemo}>Load demo seed data</button>{settings.demoSeeded&&<button onClick={clearDemo}>Clear demo data</button>}<button className="danger" onClick={resetAll}>Reset local BrandTrace data</button></div></div></section>
+  </main><footer className="site-footer"><div className="container footer-grid"><p>Developed by Ember Fire Media</p><p>BrandTrace.fyi proprietary soft-launch MVP</p><p>Scan. Trace. Decide.</p></div></footer></>;
 }
-
+function Section({ eyebrow, title, text }) { return <div className="section-header"><p className="eyebrow">{eyebrow}</p><h2>{title}</h2>{text&&<p>{text}</p>}</div>; }
+function ProductFields({ form, setForm, input, select }) { return <>{input('Product name', form.productName, v=>setForm({...form,productName:v}))}{input('Brand', form.brand, v=>setForm({...form,brand:v}))}{input('Parent company', form.parentCompany, v=>setForm({...form,parentCompany:v}))}{input('UPC / barcode', form.upc, v=>setForm({...form,upc:v}))}{input('Category', form.category, v=>setForm({...form,category:v}))}{input('Store found', form.storeLocation, v=>setForm({...form,storeLocation:v}))}{input('Date found', form.dateFound, v=>setForm({...form,dateFound:v}), {type:'date'})}{input('Country/market', form.countryMarket, v=>setForm({...form,countryMarket:v}))}<label>Ingredients notes<textarea value={form.ingredientsNotes||''} onChange={e=>setForm({...form,ingredientsNotes:e.target.value})}/></label>{select('Technology concern / claim', form.technologyCategory, v=>setForm({...form,technologyCategory:v}), TECHNOLOGY_CATEGORIES)}{select('Evidence status', form.evidenceStatus, v=>setForm({...form,evidenceStatus:v}), EVIDENCE_STATUSES)}{select('Confidence level', form.confidenceLevel, v=>setForm({...form,confidenceLevel:v}), CONFIDENCE_LEVELS)}<label>User notes<textarea value={form.userNotes||''} onChange={e=>setForm({...form,userNotes:e.target.value})}/></label></>; }
+function CompanyFields({ form, setForm, input, select }) { function addBrand(){setForm({...form, brandOwnership:[...(form.brandOwnership||[]), {id:id(), brand:'', relationship:'Owned', notes:'', productIds:[]}]})} return <>{input('Company name', form.companyName, v=>setForm({...form,companyName:v}))}{input('Parent company', form.parentCompany, v=>setForm({...form,parentCompany:v}))}{input('Headquarters country/state', form.headquarters, v=>setForm({...form,headquarters:v}))}{input('Website', form.website, v=>setForm({...form,website:v}))}{input('Customer service/contact page', form.contactPage, v=>setForm({...form,contactPage:v}))}{input('Known brands', form.knownBrands, v=>setForm({...form,knownBrands:v}))}{input('Subsidiaries', form.subsidiaries, v=>setForm({...form,subsidiaries:v}))}{input('Product categories', form.productCategories, v=>setForm({...form,productCategories:v}))}<label>Technology categories used or watched<select multiple value={form.technologyCategories||[]} onChange={e=>setForm({...form,technologyCategories:Array.from(e.target.selectedOptions).map(o=>o.value)})}>{TECHNOLOGY_CATEGORIES.map(o=><option key={o}>{o}</option>)}</select></label><label>Public claims / concerns<textarea value={form.publicClaims||''} onChange={e=>setForm({...form,publicClaims:e.target.value})}/></label>{select('Evidence status', form.evidenceStatus, v=>setForm({...form,evidenceStatus:v}), EVIDENCE_STATUSES)}{select('Confidence level', form.confidenceLevel, v=>setForm({...form,confidenceLevel:v}), CONFIDENCE_LEVELS)}{input('Last reviewed date', form.lastReviewedDate, v=>setForm({...form,lastReviewedDate:v}), {type:'date'})}<label>Notes<textarea value={form.notes||''} onChange={e=>setForm({...form,notes:e.target.value})}/></label><h3>Brand Ownership</h3>{(form.brandOwnership||[]).map((b,i)=><div className="mini" key={b.id}><input placeholder="Brand" value={b.brand} onChange={e=>{const a=[...form.brandOwnership];a[i].brand=e.target.value;setForm({...form,brandOwnership:a})}}/><select value={b.relationship} onChange={e=>{const a=[...form.brandOwnership];a[i].relationship=e.target.value;setForm({...form,brandOwnership:a})}}>{OWNERSHIP_TYPES.map(o=><option key={o}>{o}</option>)}</select><input placeholder="M&A notes / linked product IDs" value={b.notes} onChange={e=>{const a=[...form.brandOwnership];a[i].notes=e.target.value;setForm({...form,brandOwnership:a})}}/></div>)}<button type="button" onClick={addBrand}>Add brand under company</button></>; }
+function EvidenceFields({ form, setForm, input, select }) { return <>{input('Evidence title', form.evidenceTitle, v=>setForm({...form,evidenceTitle:v}))}{select('Evidence type', form.evidenceType, v=>setForm({...form,evidenceType:v}), EVIDENCE_TYPES)}{input('Source name', form.sourceName, v=>setForm({...form,sourceName:v}))}{input('Source URL', form.sourceUrl, v=>setForm({...form,sourceUrl:v}))}{input('Date published or found', form.date, v=>setForm({...form,date:v}), {type:'date'})}{input('Related company', form.relatedCompany, v=>setForm({...form,relatedCompany:v}))}{input('Related product', form.relatedProduct, v=>setForm({...form,relatedProduct:v}))}{input('Claim being supported', form.claim, v=>setForm({...form,claim:v}))}<label>Short summary<textarea value={form.summary||''} onChange={e=>setForm({...form,summary:e.target.value})}/></label><label>Exact quote / excerpt<textarea value={form.quote||''} onChange={e=>setForm({...form,quote:e.target.value})}/></label>{select('Evidence status', form.evidenceStatus, v=>setForm({...form,evidenceStatus:v}), EVIDENCE_STATUSES)}{select('Confidence level', form.confidenceLevel, v=>setForm({...form,confidenceLevel:v}), CONFIDENCE_LEVELS)}<label>Notes<textarea value={form.notes||''} onChange={e=>setForm({...form,notes:e.target.value})}/></label>{input('Last reviewed date', form.lastReviewedDate, v=>setForm({...form,lastReviewedDate:v}), {type:'date'})}</>; }
+function Filters(p){return <div className="filters"><input placeholder="Search products, brand, UPC..." value={p.query} onChange={e=>p.setQuery(e.target.value)}/><select value={p.companyFilter} onChange={e=>p.setCompanyFilter(e.target.value)}><option value="">All companies</option>{p.companies.map(c=><option key={c.id}>{c.companyName}</option>)}</select><select value={p.techFilter} onChange={e=>p.setTechFilter(e.target.value)}><option value="">All tech categories</option>{TECHNOLOGY_CATEGORIES.map(o=><option key={o}>{o}</option>)}</select><select value={p.statusFilter} onChange={e=>p.setStatusFilter(e.target.value)}><option value="">All evidence statuses</option>{EVIDENCE_STATUSES.map(o=><option key={o}>{o}</option>)}</select></div>}
+function ResultCard({ record, statusText, evidenceCount, close }) { return <article className="card result"><h3>Scanner Result</h3><p className="notice">{statusText}</p><dl><dt>Product</dt><dd>{record.productName}</dd><dt>Brand</dt><dd>{record.brand}</dd><dt>Parent company</dt><dd>{record.parentCompany}</dd><dt>UPC</dt><dd>{record.upc}</dd><dt>Technology category</dt><dd>{record.technologyCategory}</dd><dt>Evidence status</dt><dd>{record.evidenceStatus}</dd><dt>Confidence</dt><dd>{record.confidenceLevel}</dd><dt>Notes</dt><dd>{record.userNotes || record.notes}</dd><dt>Linked evidence</dt><dd>{record.linkedEvidenceIds?.length || evidenceCount || 0}</dd><dt>Uploaded images</dt><dd>{record.uploadedImages?.length || 0}</dd><dt>Last updated</dt><dd>{record.updatedAt}</dd></dl>{close&&<button onClick={close}>Close</button>}</article>; }
 export default App;
