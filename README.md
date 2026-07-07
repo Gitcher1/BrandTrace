@@ -22,7 +22,7 @@ This repository now includes a deployable BrandTrace public website built with R
 The public website includes:
 
 - Soft-launch dashboard with quick actions and local record counts
-- Scanner & Upload Hub for barcode/QR manual entry, product photo uploads, mobile camera capture, evidence document metadata, and manual product entry
+- Scanner & Upload Hub for barcode/QR manual entry, UPC lookup, product photo uploads, mobile camera capture, evidence document metadata, and manual product entry
 - Product Records Database with search, filters, detail cards, editing, and delete confirmations
 - Company Database with ownership fields, technology categories, evidence status, confidence, and brand ownership mapping
 - Evidence Trail System for company or product claims, excerpts, source URLs, status, confidence, and review notes
@@ -35,6 +35,9 @@ The public website includes:
 BrandTrace currently runs as a local-first browser app. Users can:
 
 - Start a scan/upload workflow from the dashboard.
+- Look up manually entered or scanned UPC/barcode values through the public Open Food Facts product endpoint with no API key.
+- Review an auto-filled product draft before saving public product data to local records.
+- Create needs-review evidence records and optional company drafts from UPC lookup results.
 - Manually enter UPC/barcode values, QR/manual codes, product names, brands, parent companies, store/location, dates, and notes.
 - Upload existing product or label photos with categories such as product photo, front label, ingredient label, nutrition label, barcode photo, company/contact label, receipt photo, and other evidence photo.
 - On supported mobile browsers, use **Take Photo** controls to launch the device camera for product labels, ingredients, nutrition panels, barcodes, contact labels, receipts, and evidence photos.
@@ -45,6 +48,23 @@ BrandTrace currently runs as a local-first browser app. Users can:
 - Add evidence trail records connected to products or companies.
 - Search products and filter by company, technology category, and evidence status.
 - Search brand ownership entries to find likely parent company relationships.
+
+
+## UPC Lookup and Product Auto-Fill
+
+BrandTrace can look up a UPC/barcode in the public Open Food Facts database using the endpoint shape `https://world.openfoodfacts.org/api/v2/product/{barcode}.json`. No API key, backend service, authentication, cloud database, paid API, or hidden credential is required.
+
+When a public product record is found, BrandTrace creates a review draft instead of saving automatically. The draft can include product name, brand, UPC/barcode, category, ingredients text, nutrition notes, product image URL, packaging or labels, country/market, Open Food Facts source metadata, lookup date, and source URL when those fields are available. Users must review and correct the draft before saving because public product database results are helpful starting points, not verified final truth.
+
+BrandTrace also attempts to match the lookup brand against the local company database by exact company name, known brands, case-insensitive comparisons, and punctuation-trimmed comparisons where practical. Matched products are linked to the local company record and show company database match language. Unmatched products keep the parent company as unknown/needs research and can create a local company draft for later verification.
+
+Successful UPC lookups can create evidence records with the type `Public product database`, source name `Open Food Facts`, the source URL, date found, related product/company fields when available, the supported claim `Product identity and label data`, needs-review status, and confidence notes. BrandTrace does not claim a lookup is verified unless the evidence status is later changed to verified by the user.
+
+## Local Lookup Cache and Privacy
+
+UPC lookup cache entries are stored locally under the `brandtraceLookupCache` localStorage key. Cached entries include the barcode, source, found/not-found status, fetched timestamp, normalized product data, and a small raw summary when useful. BrandTrace checks saved product records and cached lookup data before calling Open Food Facts when settings allow it, and users can refresh the lookup to fetch again.
+
+UPC lookup requires internet access and sends the barcode number to Open Food Facts. Uploaded photos stay local in the browser unless the user chooses to export or share data. Manual entry, uploads, saved local records, and not-found workflows continue to work when the app is offline.
 
 ## Local-First Storage Warning
 
@@ -89,15 +109,15 @@ The current MVP is intentionally careful and local-only:
 
 Planned future improvements include:
 
-- Real barcode lookup integration.
+- GS1 verification support.
+- Paid UPC database support.
+- OCR ingredient extraction.
+- Parent company ownership graph.
+- Admin review queue.
+- Public verified BrandTrace database.
 - Live barcode scanning and barcode-to-product matching.
-- OCR ingredient, nutrition label, receipt, and company/contact label extraction.
-- Public evidence database.
-- User-submitted verification queue.
-- Admin review dashboard.
 - Retailer listing verification.
 - UPC/photo matching.
-- Company ownership graph visualization.
 - Community fact-check workflow.
 
 ## Local Development
