@@ -22,7 +22,7 @@ This repository now includes a deployable BrandTrace public website built with R
 The public website includes:
 
 - Soft-launch dashboard with quick actions and local record counts
-- Scanner & Upload Hub for barcode/QR manual entry, product photos, evidence document metadata, and manual product entry
+- Scanner & Upload Hub for barcode/QR manual entry, product photo uploads, mobile camera capture, evidence document metadata, and manual product entry
 - Product Records Database with search, filters, detail cards, editing, and delete confirmations
 - Company Database with ownership fields, technology categories, evidence status, confidence, and brand ownership mapping
 - Evidence Trail System for company or product claims, excerpts, source URLs, status, confidence, and review notes
@@ -36,8 +36,9 @@ BrandTrace currently runs as a local-first browser app. Users can:
 
 - Start a scan/upload workflow from the dashboard.
 - Manually enter UPC/barcode values, QR/manual codes, product names, brands, parent companies, store/location, dates, and notes.
-- Upload multiple product or label photos with categories such as front label, ingredient label, nutrition label, barcode photo, company/contact label, and other evidence photo.
-- Store image previews as local data URLs in `localStorage` only.
+- Upload existing product or label photos with categories such as product photo, front label, ingredient label, nutrition label, barcode photo, company/contact label, receipt photo, and other evidence photo.
+- On supported mobile browsers, use **Take Photo** controls to launch the device camera for product labels, ingredients, nutrition panels, barcodes, contact labels, receipts, and evidence photos.
+- Store uploaded and camera-captured image previews as local data URLs in `localStorage` only.
 - Save report/document metadata without server upload, OCR, or file parsing.
 - Create product records from scans, uploads, or manual entry.
 - Create company records and map brand ownership as owned, licensed, distributed, acquired, or unclear.
@@ -56,7 +57,7 @@ All saved BrandTrace user data is stored in this browser using `localStorage` ke
 - `brandtraceUploads`
 - `brandtraceSettings`
 
-Large image uploads can fill local device storage. Browser data can also be cleared by the user, browser settings, operating-system cleanup, private browsing modes, or device migration. Export backups regularly before relying on local records.
+Large image uploads or camera captures can fill local device storage. Browser data can also be cleared by the user, browser settings, operating-system cleanup, private browsing modes, or device migration. Export backups regularly before relying on local records.
 
 ## Import and Export
 
@@ -77,8 +78,9 @@ The current MVP is intentionally careful and local-only:
 
 - No backend, authentication, cloud database, paid API, or external service is included.
 - Barcode/QR camera scanning is limited to browser support for native `BarcodeDetector`; unsupported devices show a manual-entry fallback.
-- Camera permission denial should not block manual product entry.
-- Uploaded images are not committed to the repository and are not uploaded to a server.
+- Camera capture uses mobile-friendly file input support (`accept="image/*"` with `capture="environment"`). Some desktop browsers and mobile browsers may ignore the capture hint, show a normal file picker, or require camera permission.
+- Camera permission denial, cancellation, or unsupported capture should not block upload fallback or manual product entry.
+- Uploaded and camera-captured images are not committed to the repository and are not uploaded to a server.
 - Evidence documents are represented by metadata and notes only; OCR, parsing, and document storage are not implemented.
 - Demo seed records are clearly marked as research/demo records and should not be treated as verified retail availability.
 - BrandTrace separates verified facts, watchlist items, disputed items, needs-review records, and unverified viral claims.
@@ -88,7 +90,8 @@ The current MVP is intentionally careful and local-only:
 Planned future improvements include:
 
 - Real barcode lookup integration.
-- OCR ingredient label extraction.
+- Live barcode scanning and barcode-to-product matching.
+- OCR ingredient, nutrition label, receipt, and company/contact label extraction.
 - Public evidence database.
 - User-submitted verification queue.
 - Admin review dashboard.
