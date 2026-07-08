@@ -26,13 +26,58 @@ const TECHNOLOGY_CATEGORIES = [
 
 const EVIDENCE_STATUSES = ['Verified', 'Likely', 'Unclear', 'Watchlist', 'Unverified viral claim', 'Disputed', 'Not found', 'Needs review'];
 const CONFIDENCE_LEVELS = ['High', 'Medium', 'Low', 'Unknown'];
-const EVIDENCE_TYPES = ['Company statement', 'Regulatory source', 'News report', 'Academic/research source', 'Retail listing', 'Product label', 'Public product database', 'User upload', 'Receipt/photo evidence', 'Fact check', 'Unverified social media claim', 'Other'];
-const PHOTO_TYPES = ['Product Photo', 'Front Label', 'Ingredient Label', 'Nutrition Label', 'Barcode Photo', 'Company / Contact Label', 'Receipt Photo', 'Other Evidence Photo'];
+const EVIDENCE_TYPES = [
+  'Company statement',
+  'Regulatory source',
+  'News report',
+  'Academic/research source',
+  'Retail listing',
+  'Product label',
+  'User upload',
+  'Receipt/photo evidence',
+  'Fact check',
+  'Public product database',
+  'Unverified social media claim',
+  'Other',
+];
+const PHOTO_TYPES = [
+  'Product Photo',
+  'Front Label',
+  'Ingredient Label',
+  'Nutrition Label',
+  'Barcode Photo',
+  'Company / Contact Label',
+  'Receipt Photo',
+  'Other Evidence Photo',
+];
 const OWNERSHIP_TYPES = ['Owned', 'Licensed', 'Distributed', 'Acquired', 'Unclear'];
 
 const emptyProduct = {
-  productName: '', brand: '', parentCompany: '', upc: '', category: '', storeLocation: '', dateFound: '', countryMarket: '', ingredientsNotes: '', nutritionNotes: '', productImageUrl: '', packagingLabels: '',
-  technologyCategory: 'Unknown / needs research', evidenceStatus: 'Needs review', confidenceLevel: 'Unknown', companyStatus: '', companyId: '', dataSources: ['Manual entry'], sourceName: '', sourceUrl: '', lookupDate: '', rawLookupSourceName: '', userNotes: '', uploadedImages: [], linkedEvidenceIds: [],
+  productName: '',
+  brand: '',
+  parentCompany: '',
+  companyId: '',
+  companyStatus: '',
+  upc: '',
+  category: '',
+  storeLocation: '',
+  countryMarket: '',
+  ingredientsNotes: '',
+  nutritionNotes: '',
+  technologyCategory: 'Unknown / needs research',
+  evidenceStatus: 'Needs review',
+  confidenceLevel: 'Unknown',
+  uploadedImages: [],
+  linkedEvidenceIds: [],
+  dataSources: ['Manual entry'],
+  productImageUrl: '',
+  sourceName: '',
+  sourceUrl: '',
+  lookupDate: '',
+  userNotes: '',
+  dateFound: '',
+  packagingLabels: '',
+  rawLookupSourceName: '',
 };
 const emptyCompany = { companyName: '', parentCompany: '', headquarters: '', website: '', contactPage: '', knownBrands: '', subsidiaries: '', productCategories: '', publicClaims: '', technologyCategories: ['Unknown / needs research'], evidenceStatus: 'Needs review', confidenceLevel: 'Unknown', lastReviewedDate: '', notes: '', brandOwnership: [] };
 const emptyEvidence = { evidenceTitle: '', evidenceType: 'User upload', sourceName: '', sourceUrl: '', date: '', relatedCompany: '', relatedProduct: '', claim: '', summary: '', quote: '', evidenceStatus: 'Needs review', confidenceLevel: 'Unknown', notes: '', lastReviewedDate: '' };
