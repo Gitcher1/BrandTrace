@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { isLookupBarcode, normalizeBarcodeValue, scannerErrorMessage, SUPPORTED_FORMATS } from '../src/utils/barcodeDecoder.js';
+assert(SUPPORTED_FORMATS.includes('upc_a'), 'native detector support includes UPC-A');
+assert(SUPPORTED_FORMATS.includes('ean_13'), 'native detector support includes EAN-13');
+assert.equal(normalizeBarcodeValue('0 12345-67890 5', 'upc_a'), '012345678905', 'valid UPC-A detection normalizes');
+assert.equal(normalizeBarcodeValue('4006381333931', 'ean_13'), '4006381333931', 'valid EAN-13 detection normalizes');
+assert.equal(isLookupBarcode('https://example.test/?q=4006381333931', 'qr_code'), true, 'QR/manual code only looks up valid numeric barcode');
+assert.equal(isLookupBarcode('not a barcode', 'qr_code'), false, 'no-barcode result does not look up');
+globalThis.window = { isSecureContext: true };
+Object.defineProperty(globalThis, 'navigator', { value: { mediaDevices: { getUserMedia() {} } }, configurable: true });
+assert.match(scannerErrorMessage({ name: 'NotAllowedError' }), /permission denied/i, 'permission denial is specific');
+assert.match(scannerErrorMessage(new Error('decoder unavailable')), /decoder unavailable/i, 'fallback decoder path is surfaced');
+console.log('barcode decoder static checks passed');
