@@ -5,13 +5,15 @@ BrandTrace is a consumer transparency platform developed by **Ember Fire Media**
 **Tagline:** Scan. Trace. Decide.  
 **Domain:** [brandtrace.fyi](https://brandtrace.fyi)
 
-BrandTrace helps consumers understand who owns the products they purchase through factual, source-based ownership information. The long-term mission is to build a trusted consumer ownership database that documents information, verifies sources, and lets consumers decide.
+BrandTrace puts clear, source-based information about products and the companies behind them back into consumers’ hands. We document ownership, product attributes, and evidence — including organic, non-GMO, farm-to-table, and related claims when sources support them — then let people decide for themselves. We do not promote boycotts; we promote the whole story.
 
 > We document.
 >
 > We verify.
 >
 > Consumers decide.
+
+We also feature a **Monthly Local Business Spotlight** for independent producers and retailers that practice real transparency (see `docs/MONTHLY_SPOTLIGHT.md`).
 
 ## Public Website
 
@@ -97,7 +99,7 @@ The Data Import / Export section supports:
 The current MVP is intentionally careful and local-only:
 
 - No backend, authentication, cloud database, paid API, or external service is included.
-- Barcode/QR camera scanning is limited to browser support for native `BarcodeDetector`; unsupported devices show a manual-entry fallback.
+- Live barcode scanning uses native `BarcodeDetector` when available, a local EAN/UPC decoder, and ZXing as a cross-browser fallback. Unsupported environments fall back to manual entry or photo upload.
 - Camera capture uses mobile-friendly file input support (`accept="image/*"` with `capture="environment"`). Some desktop browsers and mobile browsers may ignore the capture hint, show a normal file picker, or require camera permission.
 - Camera permission denial, cancellation, or unsupported capture should not block upload fallback or manual product entry.
 - Uploaded and camera-captured images are not committed to the repository and are not uploaded to a server.
@@ -107,18 +109,15 @@ The current MVP is intentionally careful and local-only:
 
 ## Future Roadmap
 
-Planned future improvements include:
+See [ROADMAP.md](ROADMAP.md) for the full phased plan. Near-term priorities include:
 
-- GS1 verification support.
-- Paid UPC database support.
-- OCR ingredient extraction.
-- Parent company ownership graph.
-- Admin review queue.
-- Public verified BrandTrace database.
-- Live barcode scanning and barcode-to-product matching.
-- Retailer listing verification.
-- UPC/photo matching.
-- Community fact-check workflow.
+- Hardened continuous live barcode scanning (native + ZXing + local EAN/UPC fallback).
+- Optional modular backend for community submissions and a review queue (local-first remains the default).
+- Clearer ownership relationship and evidence models.
+- Public verified database that never mixes pending community content with verified records.
+- Parent-company ownership graphs backed by sources.
+- GS1 / additional product data sources over time.
+- Community contribution tooling that stays aligned with the Verification Protocol.
 
 ## Local Development
 
@@ -189,8 +188,9 @@ BrandTrace is:
 
 - A consumer information platform.
 - A transparency initiative.
-- A factual ownership database.
+- A factual ownership and product-transparency database.
 - A community-driven verification project.
+- A place to learn from local and independent businesses that practice clear sourcing and labeling (Monthly Spotlight).
 
 ## What BrandTrace Is Not
 
@@ -200,8 +200,9 @@ BrandTrace is not:
 - A corporate attack platform.
 - A boycott application.
 - A place for unsupported accusations.
+- A paid ranking or “approved brand” list.
 
-BrandTrace does not tell consumers what to think. BrandTrace gives consumers the information needed to think for themselves.
+BrandTrace does not tell consumers what to think. BrandTrace gives consumers the information needed to think for themselves — including facts relevant to natural, organic, non-GMO, and farm-to-table preferences when those facts are documented.
 
 ## Core Standard
 
@@ -250,6 +251,13 @@ BrandTrace/
 └── website/                # Public website notes and future marketing/policy pages
 ```
 
+## Free, Open, and Accountable
+
+- BrandTrace is **free for users** and will remain free for core transparency features.
+- Other developers are welcome to contribute (see CONTRIBUTING.md).
+- Future advertising, if any, must align with supporting small businesses and real accountability (see FUNDING_AND_ADVERTISING.md).
+- Decision-making and review standards are documented in GOVERNANCE.md.
+
 ## Project Documents
 
 - [Mission](MISSION.md)
@@ -257,9 +265,11 @@ BrandTrace/
 - [Roadmap](ROADMAP.md)
 - [Verification Protocol](VERIFICATION_PROTOCOL.md)
 - [Database Model](DATABASE_MODEL.md)
+- [Funding and Advertising Policy](FUNDING_AND_ADVERTISING.md)
+- [Governance](GOVERNANCE.md)
 - [Contributing](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
-- [License](LICENSE)
+- [License](LICENSE) (MIT)
 
 ## Developed By
 
