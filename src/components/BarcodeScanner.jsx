@@ -37,8 +37,9 @@ function isExpectedScanMiss(error) {
 
 /**
  * Mobile-first continuous barcode scanner.
- * ZXing owns the live stream/scan loop instead of BrandTrace sampling individual frames.
- * This is substantially more reliable for UPC/EAN scanning on Android/iOS browsers.
+ * Uses ZXing's documented live video-device path. Passing no device on the first
+ * scan lets ZXing request the environment/rear camera instead of accidentally
+ * selecting the first enumerated device (often the selfie camera on phones).
  */
 export default function BarcodeScanner({ onDetected, onClosed }) {
   const videoRef = useRef(null);
@@ -46,6 +47,7 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
   const readerRef = useRef(null);
   const generationRef = useRef(0);
   const closedRef = useRef(false);
+  const devicesRef = useRef([]);
   const [status, setStatus] = useState('Requesting rear camera…');
   const [error, setError] = useState('');
   const [devices, setDevices] = useState([]);
@@ -58,7 +60,7 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
     try {
       controlsRef.current?.stop?.();
     } catch {
-      // Best-effort cleanup; also stop any stream still attached to the video element below.
+      // Best-effort cleanup.
     }
     controlsRef.current = null;
     readerRef.current = null;
@@ -69,7 +71,20 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
     setTorchSupported(false);
   }
 
-  async function start(index = deviceIndex) {
+  async function refreshDevices() {
+    try {
+      const cams = await BrowserMultiFormatReader.listVideoInputDevices();
+      devicesRef.current = cams;
+      setDevices(cams);
+      return cams;
+    } catch {
+      devicesRef.current = [];
+      setDevices([]);
+      return [];
+    }
+  }
+
+  async function start(deviceId) {
     stop();
     const generation = generationRef.current;
     closedRef.current = false;
@@ -79,19 +94,6 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
     try {
       if (!window.isSecureContext) throw new Error('secure context');
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('camera unsupported');
-
-      let cams = [];
-      try {
-        cams = await BrowserMultiFormatReader.listVideoInputDevices();
-      } catch {
-        cams = [];
-      }
-      if (generation !== generationRef.current) return;
-      setDevices(cams);
-
-      const safeIndex = cams.length ? Math.min(index, cams.length - 1) : 0;
-      const selectedDeviceId = cams[safeIndex]?.deviceId;
-      setDeviceIndex(safeIndex);
 
       const hints = new Map();
       hints.set(DecodeHintType.POSSIBLE_FORMATS, RETAIL_FORMATS);
@@ -104,20 +106,8 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
       });
       readerRef.current = reader;
 
-      const videoConstraints = selectedDeviceId
-        ? {
-            deviceId: { exact: selectedDeviceId },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          }
-        : {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          };
-
-      const controls = await reader.decodeFromConstraints(
-        { audio: false, video: videoConstraints },
+      const controls = await reader.decodeFromVideoDevice(
+        deviceId || undefined,
         videoRef.current,
         (result, scanError) => {
           if (generation !== generationRef.current || closedRef.current) return;
@@ -141,7 +131,7 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
           if (scanError && !isExpectedScanMiss(scanError)) {
             console.warn('BrandTrace scanner attempt error', scanError);
           }
-        }
+        },
       );
 
       if (generation !== generationRef.current || closedRef.current) {
@@ -152,6 +142,12 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
       controlsRef.current = controls;
       setTorchSupported(typeof controls?.switchTorch === 'function');
       setStatus('Scanning continuously… center the UPC/EAN barcode in the guide and hold steady.');
+
+      const cams = await refreshDevices();
+      if (deviceId && cams.length) {
+        const activeIndex = cams.findIndex((cam) => cam.deviceId === deviceId);
+        if (activeIndex >= 0) setDeviceIndex(activeIndex);
+      }
     } catch (e) {
       if (generation !== generationRef.current) return;
       stop();
@@ -161,13 +157,22 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
   }
 
   useEffect(() => {
-    start(0);
+    // Undefined deviceId is intentional: ZXing requests facingMode: environment.
+    start(undefined);
     return () => {
       closedRef.current = true;
       stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function switchCamera() {
+    const cams = devicesRef.current.length ? devicesRef.current : await refreshDevices();
+    if (cams.length < 2) return;
+    const next = (deviceIndex + 1) % cams.length;
+    setDeviceIndex(next);
+    await start(cams[next].deviceId);
+  }
 
   async function toggleTorch() {
     try {
@@ -205,7 +210,7 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
 
       <p className="muted">
         Tip: fill most of the green box with the barcode, keep it flat, and pause briefly while the
-        camera focuses.
+        camera focuses. You do not need to press a shutter button for live scanning.
       </p>
 
       <div className="actions">
@@ -222,13 +227,7 @@ export default function BarcodeScanner({ onDetected, onClosed }) {
         </button>
 
         {devices.length > 1 && (
-          <button
-            type="button"
-            onClick={() => {
-              const next = (deviceIndex + 1) % devices.length;
-              start(next);
-            }}
-          >
+          <button type="button" onClick={switchCamera}>
             Switch Camera
           </button>
         )}
