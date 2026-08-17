@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import BarcodeScanner from './components/BarcodeScanner.jsx';
 import BarcodeResult from './components/BarcodeResult.jsx';
+import LookupStatus from './components/LookupStatus.jsx';
 import { detectBarcodeFromFile, isLookupBarcode, normalizeBarcodeValue, scannerErrorMessage } from './utils/barcodeDecoder.js';
+import { fetchOpenFoodFactsProduct } from './utils/upcLookup.js';
 import LabelOcrReview from './components/LabelOcrReview.jsx';
 import OcrProgress from './components/OcrProgress.jsx';
 import { cancelActiveOcr, recognizeLabelImage, terminateOcrWorker } from './utils/labelOcr.js';
@@ -311,17 +313,6 @@ function App() {
     if (!target) return null;
     return companies.find((c) => normalizeMatch(c.companyName) === target || String(c.knownBrands || '').split(/[,;\n]/).some((b) => normalizeMatch(b) === target) || (c.brandOwnership || []).some((b) => normalizeMatch(b.brand) === target));
   }
-  function normalizeOffProduct(product, barcode) {
-    const brands = String(product.brands || product.brands_tags?.join(', ') || '').split(',').map((b) => b.trim()).filter(Boolean);
-    const categories = product.categories || product.categories_tags?.join(', ') || '';
-    const labels = [product.packaging, product.labels].filter(Boolean).join(' | ');
-    const countries = product.countries || product.countries_tags?.join(', ') || '';
-    const name = product.product_name || product.generic_name || '';
-    const sourceUrl = product.url || `https://world.openfoodfacts.org/product/${barcode}`;
-    const nutriments = product.nutriments || {};
-    const nutritionNotes = [product.nutrition_grade_fr && `Nutrition grade: ${product.nutrition_grade_fr}`, nutriments.energy_kcal_100g && `Energy: ${nutriments.energy_kcal_100g} kcal/100g`, nutriments.fat_100g && `Fat: ${nutriments.fat_100g}g/100g`, nutriments.sugars_100g && `Sugars: ${nutriments.sugars_100g}g/100g`, nutriments.salt_100g && `Salt: ${nutriments.salt_100g}g/100g`].filter(Boolean).join('; ');
-    return { productName: name, brand: brands[0] || '', upc: barcode, category: categories, ingredientsNotes: product.ingredients_text || '', nutritionNotes, productImageUrl: product.image_url || product.image_front_url || '', packagingLabels: labels, countryMarket: countries, sourceName: 'Open Food Facts', sourceUrl, lookupDate: new Date().toISOString().slice(0,10), rawLookupSourceName: 'Open Food Facts API v2' };
-  }
   function buildDraft(normalized) {
     const match = companyForBrand(normalized.brand);
     return { ...emptyProduct, ...normalized, parentCompany: match ? (match.parentCompany || match.companyName) : 'Unknown', companyId: match?.id || '', companyStatus: match ? 'Matched to company database' : 'Needs Research', dataSources: ['Open Food Facts lookup', ...(match ? ['Company database match'] : [])], evidenceStatus: 'Needs review', confidenceLevel: 'Medium', userNotes: `${match ? 'Matched to company database. Company match is based on BrandTrace local database.' : 'Parent company not verified yet.'}\nPublic product database result. Verify against label.${normalized.productName ? '' : '\nMissing or incomplete lookup data.'}` };
@@ -337,17 +328,40 @@ function App() {
     if (existing && !refresh) { setLookupDraft(existing); setLookupStatus('found'); setScanStep('lookup-found'); setLookupNotice('Using saved lookup data. You can refresh this lookup.'); return; }
     const cache = readKey(STORAGE_KEYS.lookupCache, {});
     if (cache[barcode] && !refresh) { setLookupStatus(cache[barcode].found ? 'found' : 'notfound'); setScanStep(cache[barcode].found ? 'lookup-found' : 'lookup-not-found'); setLookupDraft(cache[barcode].found ? buildDraft(cache[barcode].normalizedProductData) : null); setLookupNotice('Using saved lookup data. You can refresh this lookup.'); return; }
-    setLookupStatus('loading'); setScanStep('lookup-loading'); setLookupNotice('Looking up product information…');
+    setLookupStatus('loading'); setScanStep('lookup-loading'); setLookupNotice('Looking up product information on Open Food Facts…');
     try {
-      const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`);
-      const data = await res.json();
-      if (!res.ok || data.status !== 1 || !data.product) { updateActiveDraft((d)=>({ ...d, upc: barcode, lookupStatus: 'Not found', lookupSource: 'Open Food Facts' })); cacheLookup({ barcode, source: 'Open Food Facts', found: false, fetchedAt: now(), normalizedProductData: null, rawSummary: data.status_verbose || 'Not found' }); setLookupStatus('notfound'); setScanStep('lookup-not-found'); setLookupDraft(null); setLookupNotice('Lookup failed or no public record was found. The scan/photo is still saved locally. Continue with manual entry or upload label photos.'); return; }
-      const normalized = normalizeOffProduct(data.product, barcode); cacheLookup({ barcode, source: 'Open Food Facts', found: true, fetchedAt: now(), normalizedProductData: normalized, rawSummary: `${normalized.productName || 'Unnamed'} / ${normalized.brand || 'Unknown brand'}` });
+      const result = await fetchOpenFoodFactsProduct(barcode);
+      if (!result.found) {
+        updateActiveDraft((d) => ({ ...d, upc: barcode, lookupStatus: 'Not found', lookupSource: 'Open Food Facts' }));
+        cacheLookup({ barcode, source: 'Open Food Facts', found: false, fetchedAt: now(), normalizedProductData: null, rawSummary: result.rawStatus || 'Not found' });
+        setLookupStatus('notfound');
+        setScanStep('lookup-not-found');
+        setLookupDraft(null);
+        setLookupNotice(result.error || 'Lookup failed or no public record was found. The scan/photo is still saved locally. Continue with manual entry or upload label photos.');
+        return;
+      }
+      const normalized = result.normalized;
+      cacheLookup({ barcode, source: 'Open Food Facts', found: true, fetchedAt: now(), normalizedProductData: normalized, rawSummary: `${normalized.productName || 'Unnamed'} / ${normalized.brand || 'Unknown brand'}` });
       const reviewedDraft = buildDraft(normalized);
       const lookupEvidence = settings.autoCreateEvidence ? withMeta(addEvidenceForLookup(reviewedDraft)) : null;
-      if (lookupEvidence) setEvidence((prev)=>[lookupEvidence, ...prev]);
-      setLookupDraft(reviewedDraft); updateActiveDraft((d)=>({ ...d, upc: barcode, lookupStatus: 'Found / pending user review', lookupSource: 'Open Food Facts', linkedEvidenceIds: lookupEvidence ? [...new Set([...(d.linkedEvidenceIds || []), lookupEvidence.id])] : (d.linkedEvidenceIds || []), sourceWarnings: [...new Set([...(d.sourceWarnings || []), 'Open Food Facts is public/crowdsourced. Verify against the physical label.'])] })); setLookupStatus('found'); setScanStep('lookup-found'); setLookupNotice('Open Food Facts is public/crowdsourced. Verify against the physical label. Select fields to apply; BrandTrace will not overwrite user-entered fields without review.');
-    } catch { setLookupStatus('notfound'); setScanStep('lookup-not-found'); setLookupNotice('Lookup failed or no public record was found. The scan/photo is still saved locally. Continue with manual entry or upload label photos.'); }
+      if (lookupEvidence) setEvidence((prev) => [lookupEvidence, ...prev]);
+      setLookupDraft(reviewedDraft);
+      updateActiveDraft((d) => ({
+        ...d,
+        upc: barcode,
+        lookupStatus: 'Found / pending user review',
+        lookupSource: 'Open Food Facts',
+        linkedEvidenceIds: lookupEvidence ? [...new Set([...(d.linkedEvidenceIds || []), lookupEvidence.id])] : (d.linkedEvidenceIds || []),
+        sourceWarnings: [...new Set([...(d.sourceWarnings || []), 'Open Food Facts is public/crowdsourced. Verify against the physical label.'])],
+      }));
+      setLookupStatus('found');
+      setScanStep('lookup-found');
+      setLookupNotice('Open Food Facts is public/crowdsourced. Verify against the physical label. Select fields to apply; BrandTrace will not overwrite user-entered fields without review.');
+    } catch (err) {
+      setLookupStatus('notfound');
+      setScanStep('lookup-not-found');
+      setLookupNotice(`Lookup failed: ${String(err?.message || err)}. The scan/photo is still saved locally. Continue with manual entry or upload label photos.`);
+    }
   }
   function applyLookupToDraft() { if (!lookupDraft) return; const fields = ['productName','brand','category','ingredientsNotes','nutritionNotes','productImageUrl','packagingLabels','countryMarket','sourceUrl','upc','parentCompany']; const conflicts = fields.filter((f)=>activeDraft?.[f] && lookupDraft[f] && activeDraft[f] !== lookupDraft[f]); if (conflicts.length && !confirm(`Open Food Facts data differs from your draft for: ${conflicts.join(', ')}. Apply selected reviewed lookup fields?`)) return; updateActiveDraft((d)=>({ ...d, ...Object.fromEntries(fields.map((f)=>[f, lookupDraft[f] || d[f] || ''])), draftStatus: 'Ready for Review', lookupStatus: 'Applied after review', lookupSource: 'Open Food Facts', dataSources: [...new Set([...(d.dataSources || []), 'Open Food Facts lookup reviewed'])], sourceWarnings: [...new Set([...(d.sourceWarnings || []), 'Open Food Facts is public/crowdsourced. Verify against the physical label.'])] })); setProductForm((p)=>({ ...p, ...Object.fromEntries(fields.map((f)=>[f, lookupDraft[f] || p[f] || ''])), dataSources: [...new Set([...(p.dataSources||[]), 'Open Food Facts lookup reviewed'])] })); setMessage('Reviewed Open Food Facts fields were applied to the current intake draft.'); }
   function saveLookupDraft() { applyLookupToDraft(); const product = saveProduct('UPC lookup draft', { ...lookupDraft, dataSources: [...new Set([...(lookupDraft.dataSources || []), 'Open Food Facts lookup', 'User corrected'])] }); if (settings.autoCreateEvidence) { const ev = withMeta({ ...addEvidenceForLookup(product), relatedProduct: product.productName || product.upc }); setEvidence((prev) => [ev, ...prev]); if (settings.autoCreateCompanyDrafts && !product.companyId) createCompanyDraftFromLookup(product); setProducts((prev) => prev.map((p) => p.id === product.id ? { ...p, linkedEvidenceIds: [...(p.linkedEvidenceIds || []), ev.id], dataSources: [...new Set([...(p.dataSources || []), 'Evidence attached'])] } : p)); } setLookupDraft(null); setLookupStatus('idle'); return product; }
@@ -373,7 +387,8 @@ function App() {
     {activeTab === 'scanner' && <section className="section scanner-home"><div className="container"><Section title="Scan Product" eyebrow="Mobile scanner workflow" text="Scan Product → Detect barcode or capture label → Lookup product → Review result → Save to local database. Everything stays local except optional Open Food Facts UPC lookup." />
       <div className="scanner-cta card"><button ref={openScannerButtonRef} className="button primary big-action" type="button" onClick={()=>{setScanStep('camera-open'); setScannerOpen(true);}}>Scan Product Barcode / Scan live barcode</button><PhotoButton label="Take Label Photo" photoType="Front Label" sourceType="camera" handleImages={handleImages}/><button type="button" onClick={()=>setScanStep('review-draft')}>Manual Entry</button><p className="muted">Current step: {scanStep.replaceAll('-', ' ')}</p></div>
       {scannerOpen&&<BarcodeScanner onDetected={async (result)=>{setScannerOpen(false); await applyDetectedBarcode(result, 'live-camera');}} onClosed={closeScanner}/>}<BarcodeResult result={detectedBarcode} onLookup={()=>lookupUpc(false)} onScanAgain={()=>{setScanStep('camera-open');setScannerOpen(true);}} onEdit={()=>setScanStep('review-draft')} onCancel={()=>setDetectedBarcode(null)}/>
-      {lookupNotice&&<p className={lookupStatus==='notfound'?'notice':'pill'}>{lookupNotice}</p>}{lookupStatus==='loading'&&<div className="card"><h3>Looking up barcode…</h3><p>BrandTrace is checking Open Food Facts using barcode {lookupBarcode}.</p></div>}{lookupStatus==='notfound'&&<div className="card"><h3>Lookup not found</h3><p className="notice">No public Open Food Facts record was found. The UPC and photos remain saved locally in your intake draft.</p><div className="actions"><button type="button" onClick={saveUnknownProduct}>Save as unknown product</button><PhotoButton label="Take label photo" photoType="Front Label" sourceType="camera" handleImages={handleImages}/><button type="button" onClick={()=>setScanStep('review-draft')}>Manual entry</button><button onClick={()=>lookupUpc(true)}>Retry lookup</button></div></div>}{lookupDraft&&<LookupReview draft={lookupDraft} setDraft={setLookupDraft} saveDraft={saveLookupDraft} applyToDraft={applyLookupToDraft} createCompanyDraft={createCompanyDraftFromLookup} input={input}/>}
+      <LookupStatus status={lookupStatus} barcode={lookupBarcode} notice={lookupNotice} onRetry={lookupStatus==='notfound'||lookupStatus==='found'?()=>lookupUpc(true):undefined} onManual={lookupStatus==='notfound'?()=>setScanStep('review-draft'):undefined}/>
+      {lookupStatus==='notfound'&&<div className="card"><h3>Lookup not found</h3><p className="notice">No public Open Food Facts record was found (or the request failed). The UPC and photos remain saved locally in your intake draft.</p><div className="actions"><button type="button" onClick={saveUnknownProduct}>Save as unknown product</button><PhotoButton label="Take label photo" photoType="Front Label" sourceType="camera" handleImages={handleImages}/><button type="button" onClick={()=>setScanStep('review-draft')}>Manual entry</button><button type="button" onClick={()=>lookupUpc(true)}>Retry lookup</button></div></div>}{lookupDraft&&<LookupReview draft={lookupDraft} setDraft={setLookupDraft} saveDraft={saveLookupDraft} applyToDraft={applyLookupToDraft} createCompanyDraft={createCompanyDraftFromLookup} input={input}/>} 
       <CurrentIntakeDraftPanel draft={activeDraft} onReview={reviewActiveDraft} onSave={()=>saveProduct('Intake draft', { ...productForm, ...(activeDraft || {}) })} onClear={clearActiveDraft} onExport={exportActiveDraft}/>
       <div className="card"><h3>Take or Upload Product Photos</h3><p className="notice">Barcode photos attempt barcode decode and lookup. Label photos save to the active draft and offer OCR without implying lookup happened.</p>{photoDecodeNotice&&<p className={photoDecodeNotice.startsWith('No readable')?'notice':'pill'}>{photoDecodeNotice}</p>}<PhotoCaptureGrid handleImages={handleImages}/>{ocrProgress&&<OcrProgress progress={ocrProgress} onCancel={()=>{cancelActiveOcr(); setMessage('OCR cancellation requested.');}}/>}<PhotoPreviewGallery images={productForm.uploadedImages||activeDraft?.uploadedImages||[]} onRemove={removeImage} onOcr={runOcrForImage} ocrResults={ocrResults} offerOcr={settings.offerOcrAfterPhoto}/><OcrHistory ocrResults={ocrResults} images={productForm.uploadedImages||[]} onOpen={(record)=>{ const image=(productForm.uploadedImages||[]).find((img)=>img.id===record.imageId); const parsed=buildOcrSuggestions(record.photoType, record.correctedText || record.rawText, productForm); setOcrReview({ image, record, suggestions: parsed.suggestions, parserWarnings: parsed.parserWarnings, phraseDetections: parsed.phraseDetections, comparisons: compareLookupToLabel(productForm, parsed.suggestions) }); }} onRetry={(record)=>{ const image=(productForm.uploadedImages||[]).find((img)=>img.id===record.imageId); if(image) runOcrForImage(image); }} onDelete={(id)=>setOcrResults((prev)=>prev.filter((r)=>r.id!==id))}/>{ocrReview&&<LabelOcrReview {...ocrReview} product={productForm} onClose={closeOcrReview} onUpdateRecord={updateOcrResult} onApply={applyOcrFields} onSaveEvidence={saveOcrEvidence} onRetry={(image, enhancement)=>runOcrForImage(image, enhancement)} onDiscard={(record)=>{setOcrResults((prev)=>prev.filter((r)=>r.id!==record.id)); closeOcrReview();}}/>}</div>
       <div className="card"><h3>Recent Scans</h3>{recentScans.length?recentScans.map((s)=><article className="record compact-scan" key={s.id}><b>{s.detectedValue || s.upc || 'Unknown barcode'}</b><span>{s.sourceType || 'manual'} · {s.detectedAt ? new Date(s.detectedAt).toLocaleString() : new Date(s.createdAt).toLocaleString()}</span><span>Lookup: {s.lookupStatus || 'pending-review'} · Product: {s.productId || 'not saved'}</span>{activeDraft&&<button type="button" onClick={reviewActiveDraft}>Reopen draft</button>}</article>):<p className="muted">No recent scans yet. Scan a barcode to start your local history.</p>}</div>

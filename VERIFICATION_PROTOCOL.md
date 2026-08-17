@@ -24,6 +24,9 @@ Examples of stronger sources include:
 - Government business registries.
 - Court or regulatory filings.
 - Reputable journalism that cites primary sources.
+- Official certification registries (e.g. organic, non-GMO) when the claim is about certification status.
+- Primary product labels and manufacturer specifications for ingredient or formulation claims.
+- Documented cross-market label comparisons when the claim is that the same brand differs by country — always with dates and sources for each market.
 
 ## Source Requirements
 
@@ -59,3 +62,5 @@ Corrections should be handled carefully and transparently. A correction should i
 ## Neutrality
 
 Verification confirms whether a claim is adequately supported. It does not endorse a political, social, or consumer action.
+
+Product-attribute claims (organic, non-GMO, additive content, packaging materials, cross-country formulation differences) follow the same rule: verify the specific claim against sources. BrandTrace does not convert verified facts into boycott lists or political messaging. Consumers interpret the facts according to their own values.

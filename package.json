@@ -10,6 +10,8 @@
     "test": "node scripts/barcodeDecoder.static-test.mjs && node scripts/ocr.static-test.mjs"
   },
   "dependencies": {
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "tesseract.js": "^6.0.1"
