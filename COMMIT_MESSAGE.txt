@@ -1,0 +1,10 @@
+feat: harden scanner, UPC lookup, and open contribution foundations
+
+- Continuous live barcode scanning with native + local EAN/UPC + ZXing fallbacks
+- Dedicated Open Food Facts UPC lookup module with clearer errors and app identification
+- Visible mobile-friendly lookup status strip after scan/lookup
+- Optional modular backend schema (Postgres/Supabase) and submission payload helper
+- FUNDING_AND_ADVERTISING.md, GOVERNANCE.md, expanded CONTRIBUTING.md
+- Updated ROADMAP, README, and good-first-issue notes for new developers
+
+Core product remains free and local-first. Images stay in the browser; only barcode numbers are sent for public product lookup.
